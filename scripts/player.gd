@@ -1,6 +1,6 @@
 extends CharacterBody2D
 ## 玩家角色：左右移动 + 跳跃。
-## 手感参考《动物井》：起跳快、落地稳，带土狼时间与跳跃缓冲。
+## 手感紧凑：起跳快、落地稳，带土狼时间与跳跃缓冲。
 
 const MAX_SPEED := 200.0          # 最大水平速度
 const ACCEL_GROUND := 1800.0      # 地面加速度
@@ -12,10 +12,20 @@ const MAX_FALL_SPEED := 560.0     # 最大下落速度
 const JUMP_VELOCITY := -580.0     # 起跳速度（越大跳得越高）
 const COYOTE_TIME := 0.12         # 土狼时间：离开平台后仍可起跳的宽限（秒）
 const JUMP_BUFFER := 0.12         # 跳跃缓冲：落地前按下跳跃会被记住（秒）
+const DROP_THROUGH_TIME := 0.3    # 下穿平台时暂时禁用其碰撞的时长（秒）
 
 var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var facing := 1.0                 # 1 = 朝右，-1 = 朝左（供视觉节点读取）
+var _dropped_platforms: Array[Dictionary] = []
+
+
+func _ready() -> void:
+	add_to_group("player")
+	# 从存档进入时，应用保存的位置
+	if SaveManager.pending_position:
+		position = SaveManager.pending_pos
+		SaveManager.pending_position = false
 
 
 func _physics_process(delta: float) -> void:
@@ -28,9 +38,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = minf(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
 		coyote_timer = maxf(coyote_timer - delta, 0.0)
 
-	# ---- 跳跃缓冲 ----
-	if Input.is_action_just_pressed("jump"):
-		jump_buffer_timer = JUMP_BUFFER
+	# ---- 跳跃缓冲（在 _unhandled_input 里由按键事件置位）----
 	jump_buffer_timer = maxf(jump_buffer_timer - delta, 0.0)
 
 	# ---- 水平：加速与摩擦 ----
@@ -48,8 +56,34 @@ func _physics_process(delta: float) -> void:
 		jump_buffer_timer = 0.0
 		coyote_timer = 0.0
 
-	# ---- 可变跳跃高度：上升中松开跳跃键则提前收力 ----
-	if Input.is_action_just_released("jump") and velocity.y < 0.0:
-		velocity.y *= 0.5
+	# 到期恢复平台碰撞
+	for drop in _dropped_platforms:
+		drop.time -= delta
+		if drop.time <= 0.0:
+			(drop.body as StaticBody2D).collision_layer = 1
+	_dropped_platforms = _dropped_platforms.filter(func(d): return d.time > 0.0)
 
 	move_and_slide()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# 离散输入走事件驱动：高帧率下 is_action_just_pressed 在物理帧里可能错过边沿
+	if event.is_action_pressed("jump"):
+		jump_buffer_timer = JUMP_BUFFER
+	elif event.is_action_released("jump") and velocity.y < 0.0:
+		# 可变跳跃高度：上升中松开跳跃键则提前收力
+		velocity.y *= 0.5
+	elif event.is_action_pressed("move_down"):
+		_try_drop_through()
+
+
+func _try_drop_through() -> void:
+	# S/↓：下穿悬浮平台
+	if not is_on_floor():
+		return
+	for i in get_slide_collision_count():
+		var collider := get_slide_collision(i).get_collider()
+		if collider is StaticBody2D and collider.is_in_group("platform"):
+			var platform := collider as StaticBody2D
+			platform.collision_layer = 0
+			_dropped_platforms.append({"body": platform, "time": DROP_THROUGH_TIME})

@@ -1,14 +1,22 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/background.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/fireflies.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/platforms.gd" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="4"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/save_flower.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="8"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_add"]
 blend_mode = 1
 
+[sub_resource type="CircleShape2D" id="CircleShape2D_flower"]
+radius = 26.0
+
 [node name="Main" type="Node2D"]
+script = ExtResource("5")
 
 [node name="Backdrop" type="Node2D" parent="."]
 script = ExtResource("1")
@@ -21,4 +29,16 @@ script = ExtResource("2")
 script = ExtResource("3")
 
 [node name="Player" parent="." instance=ExtResource("4")]
-position = Vector2(100, 240)
+position = Vector2(60, 240)
+
+[node name="SaveFlower" type="Area2D" parent="."]
+position = Vector2(590, 136)
+script = ExtResource("6")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SaveFlower"]
+shape = SubResource("CircleShape2D_flower")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("7")
+
+[node name="PauseMenu" parent="." instance=ExtResource("8")]
